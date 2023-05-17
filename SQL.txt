@@ -1,0 +1,362 @@
+12, 14
+
+1.
+SELECT EMPLOYEE_ID FROM (SELECT e.EMPLOYEE_ID, e.HIRE_DATE FROM HR.EMPLOYEES e
+WHERE e.EMPLOYEE_ID IN (SELECT DISTINCT m.MANAGER_ID FROM HR.EMPLOYEES m where m.MANAGER_ID IS NOT NULL))
+WHERE HIRE_DATE = (SELECT MAX(e.HIRE_DATE) FROM HR.EMPLOYEES e
+WHERE e.EMPLOYEE_ID IN (SELECT DISTINCT m.MANAGER_ID FROM HR.EMPLOYEES m where m.MANAGER_ID IS NOT NULL))
+
+2.
+SELECT employee_id, last_name, salary, department_id
+FROM HR.employees s 
+WHERE department_id IS NOT NULL AND salary > (SELECT AVG(salary) FROM HR.employees WHERE s.department_id = HR.employees.department_id)
+ORDER BY department_id, salary DESC, last_name
+
+3.
+SELECT employee_id, last_name, salary, department_id
+FROM HR.employees s
+WHERE department_id IS NOT NULL AND salary = (SELECT MIN(salary) FROM HR.employees WHERE s.department_id = HR.employees.department_id)
+ORDER BY department_id, salary, last_name
+
+
+4.
+SELECT e.last_name, e.first_name, e.salary
+FROM HR.employees e
+JOIN HR.departments d ON e.department_id = d.department_id
+JOIN HR.locations l ON d.location_id = l.location_id
+JOIN HR.countries c ON l.country_id = c.country_id
+JOIN HR.regions r ON c.region_id = r.region_id
+WHERE r.region_name = 'Americas'
+AND e.salary > (
+	SELECT MAX(m.salary)
+	FROM (
+		SELECT m.salary, RANK() OVER (PARTITION BY m.manager_id ORDER BY COUNT(*) DESC) as rnk
+		FROM HR.employees m
+		JOIN HR.departments md ON m.department_id = md.department_id
+		JOIN HR.locations ml ON md.location_id = ml.location_id
+		JOIN HR.countries mc ON ml.country_id = mc.country_id
+		JOIN HR.regions mr ON mc.region_id = mr.region_id
+		WHERE mr.region_name = 'Europe'
+		GROUP BY m.manager_id, m.salary
+	) m
+	WHERE m.rnk = 1
+)
+ORDER BY e.last_name, e.first_name
+
+5.
+SELECT
+  d.department_id,
+  NVL(SUM(e.salary), 0) as total_salary,
+  ROUND(NVL(SUM(e.salary), 0) / t.total_salary * 100) as percentage
+FROM
+  HR.departments d
+  full JOIN HR.employees e ON d.department_id = e.department_id
+  CROSS JOIN (
+    SELECT SUM(salary) as total_salary FROM HR.employees
+  ) t
+GROUP BY
+  d.department_id,
+  t.total_salary
+ORDER BY
+  percentage DESC
+
+6. 
+SELECT d.department_id AS DEPARTMENT_ID,
+       COALESCE(AVG(e.salary), 0) AS AVERAGE_SALARY,
+       NVL(ROUND(AVG(e.salary) / t.total_avg * 100), 0) as percentage
+FROM HR.departments d
+full JOIN HR.employees e ON d.department_id = e.department_id
+CROSS JOIN (
+    SELECT AVG(I.avg) as total_avg
+    FROM 
+    (SELECT AVG(salary) as avg
+    FROM HR.employees
+    GROUP BY DEPARTMENT_ID) I
+  ) t
+GROUP BY d.department_id, t.total_avg
+ORDER BY d.department_id, AVERAGE_SALARY, PERCENTAGE
+
+
+
+7.
+select e.first_name, count(e.first_name) as names_count
+from HR.employees e
+JOIN HR.employees m ON e.EMPLOYEE_ID = m.EMPLOYEE_ID
+where e.first_name = m.first_name
+group by e.first_name
+order by names_count desc
+
+
+
+8.
+SELECT d.department_name,
+  COUNT(DISTINCT CASE WHEN e.manager_id IS NULL THEN e.employee_id END) AS level1,
+  COUNT(DISTINCT CASE WHEN e.manager_id IN (
+    SELECT employee_id FROM HR.employees WHERE manager_id IS NULL
+  ) THEN e.employee_id END) AS level2,
+  COUNT(DISTINCT CASE WHEN e.manager_id NOT IN (
+    SELECT employee_id FROM HR.employees WHERE manager_id IS NULL
+  ) AND e.employee_id IN (
+
+    SELECT e3.EMPLOYEE_ID
+
+FROM HR.employees e1
+left JOIN HR.departments d1 ON d1.department_id = e1.department_id 
+
+left JOIN HR.locations l1 ON d1.location_id = l1.location_id
+left JOIN HR.countries c1 ON l1.country_id = c1.country_id
+left JOIN HR.regions r1 ON c1.region_id = r1.region_id
+
+left JOIN HR.employees e2 ON e1.employee_id = e2.manager_id
+left JOIN HR.departments d2 ON d2.department_id = e2.department_id 
+
+left JOIN HR.locations l2 ON d2.location_id = l2.location_id
+left JOIN HR.countries c2 ON l2.country_id = c2.country_id
+left JOIN HR.regions r2 ON c2.region_id = r2.region_id
+
+left JOIN HR.employees e3 ON e2.employee_id = e3.manager_id
+left JOIN HR.departments d3 ON d3.department_id = e3.department_id 
+
+left JOIN HR.locations l3 ON d3.location_id = l3.location_id
+left JOIN HR.countries c3 ON l3.country_id = c3.country_id
+left JOIN HR.regions r3 ON c3.region_id = r3.region_id
+
+WHERE r3.region_name = 'Americas' and e1.manager_ID is NULL
+
+
+  ) THEN e.employee_id END) AS level3
+
+FROM HR.employees e
+JOIN HR.departments d ON e.department_id = d.department_id
+JOIN HR.locations l ON d.location_id = l.location_id
+JOIN HR.countries c ON l.country_id = c.country_id
+JOIN HR.regions r ON c.region_id = r.region_id
+WHERE r.region_name = 'Americas'
+GROUP BY d.department_name
+ORDER BY d.department_name
+
+
+9.
+SELECT d.department_id
+FROM HR.departments d
+JOIN (
+  SELECT AVG(e.salary) AS avg_salary
+  FROM HR.employees e
+  JOIN HR.departments d ON e.department_id = d.department_id
+  JOIN HR.locations l ON d.location_id = l.location_id
+  JOIN HR.countries c ON l.country_id = c.country_id
+  JOIN HR.regions r ON c.region_id = r.region_id and r.region_name = 'Americas'
+) a ON 1=1
+JOIN (
+  SELECT d.department_name, MIN(e.salary) AS min_salary
+  FROM HR.employees e
+  JOIN HR.departments d ON e.department_id = d.department_id
+  JOIN HR.locations l ON d.location_id = l.location_id
+  JOIN HR.countries c ON l.country_id = c.country_id
+  JOIN HR.regions r ON c.region_id = r.region_id and r.region_name = 'Americas'
+  GROUP BY d.department_name
+) m ON d.department_name = m.department_name
+WHERE m.min_salary > a.avg_salary
+ORDER BY d.department_name
+
+
+10.
+если несколько отделов с наименьшим число сотрудников, выведем department_id и общую зп
+людей без отдела не учитываем
+
+SELECT department_id, SUM(salary) AS total_salary
+FROM HR.employees
+WHERE department_id IN (
+    SELECT department_id
+    FROM (
+        SELECT department_id, COUNT(*) AS employee_count
+        FROM HR.employees
+        GROUP BY department_id
+        HAVING COUNT(*) = (
+            SELECT MIN(employee_count)
+            FROM (
+                SELECT COUNT(*) AS employee_count
+                FROM HR.employees
+                GROUP BY department_id
+            )
+        )
+    )
+)
+group by department_id 
+order by total_salary
+
+11.
+SELECT e.last_name, count(e.last_name) as cnt
+FROM HR.employees e
+JOIN HR.employees m ON e.EMPLOYEE_ID = m.EMPLOYEE_ID
+where e.last_name= m.last_name
+group by e.last_name
+having count(e.last_name) > 1
+order by cnt desc
+
+
+12.
+SELECT c.country_id, e.employee_id
+FROM HR.employees e
+  JOIN HR.departments d ON e.department_id = d.department_id
+  JOIN HR.locations l ON d.location_id = l.location_id
+  JOIN HR.countries c ON l.country_id = c.country_id
+  JOIN HR.regions r ON c.region_id = r.region_id 
+where c.country_id in 
+(SELECT c.country_id
+FROM HR.countries c
+JOIN HR.locations l ON c.country_id = l.country_id
+JOIN HR.departments d ON l.location_id = d.location_id
+GROUP BY c.country_id
+HAVING COUNT(DISTINCT d.department_id) = (
+  SELECT max(department_count)
+  FROM (
+    SELECT COUNT(DISTINCT d.department_id) AS department_count
+    FROM HR.departments d
+    JOIN HR.locations l ON d.location_id = l.location_id
+    GROUP BY l.country_id
+  )
+))
+AND
+e.salary in (
+SELECT MAX(salary) from (
+SELECT e.*, c.country_name AS country_sal FROM hr.employees e
+  JOIN hr.departments d ON e.department_id = d.department_id
+  JOIN hr.locations l ON d.location_id = l.location_id
+  JOIN hr.countries c ON l.country_id = c.country_id
+)
+)
+
+
+
+
+13. 
+SELECT c.country_id, e.employee_id
+FROM HR.employees e
+  JOIN HR.departments d ON e.department_id = d.department_id
+  JOIN HR.locations l ON d.location_id = l.location_id
+  JOIN HR.countries c ON l.country_id = c.country_id
+  JOIN HR.regions r ON c.region_id = r.region_id 
+where c.country_id in 
+(SELECT c.country_id
+FROM HR.countries c
+JOIN HR.locations l ON c.country_id = l.country_id
+JOIN HR.departments d ON l.location_id = d.location_id
+GROUP BY c.country_id
+HAVING COUNT(DISTINCT d.department_id) = (
+  SELECT max(department_count)
+  FROM (
+    SELECT COUNT(DISTINCT d.department_id) AS department_count
+    FROM HR.departments d
+    JOIN HR.locations l ON d.location_id = l.location_id
+    GROUP BY l.country_id
+  )
+))
+AND e.EMPLOYEE_ID in
+(
+SELECT MANAGER_ID
+FROM HR.EMPLOYEES
+WHERE MANAGER_ID IS NOT NULL
+GROUP BY MANAGER_ID
+HAVING COUNT(EMPLOYEE_ID) = (
+  SELECT MAX(num_reports)
+  FROM (
+    SELECT COUNT(*) AS num_reports
+    FROM HR.employees
+    GROUP BY manager_id
+  )
+)
+)
+order by c.country_id, e.employee_id
+
+
+14. 
+SELECT e.employee_id, COUNT(e2.employee_id) as subordinates
+FROM HR.employees e
+JOIN HR.departments d ON e.department_id = d.department_id
+JOIN HR.locations l ON d.location_id = l.location_id
+JOIN HR.countries c ON l.country_id = c.country_id
+LEFT JOIN HR.employees e2 ON e.employee_id = e2.manager_id
+WHERE c.country_id IN
+(
+SELECT DISTINCT cc.country_id
+  FROM HR.employees ee
+  JOIN HR.departments dd ON ee.department_id = dd.department_id
+  JOIN HR.locations ll ON dd.location_id = ll.location_id
+  JOIN HR.countries cc ON ll.country_id = cc.country_id
+  WHERE ee.hire_date = (
+    SELECT MAX(hire_date)
+    FROM HR.employees
+  )
+)
+GROUP BY e.employee_id
+having COUNT(e2.employee_id) = 
+(
+  SELECT MAX(num_reports)
+  FROM (
+    SELECT COUNT(e2.employee_id) AS num_reports
+    FROM HR.employees E
+JOIN HR.departments d ON e.department_id = d.department_id
+JOIN HR.locations l ON d.location_id = l.location_id
+JOIN HR.countries c ON l.country_id = c.country_id
+JOIN HR.employees E2 ON E.MANAGER_ID = E2.EMPLOYEE_ID
+JOIN HR.countries cc ON c.country_id = cc.country_id
+WHERE c.country_id IN
+(
+SELECT DISTINCT cc.country_id
+  FROM HR.employees ee
+  JOIN HR.departments dd ON ee.department_id = dd.department_id
+  JOIN HR.locations ll ON dd.location_id = ll.location_id
+  JOIN HR.countries cc ON ll.country_id = cc.country_id
+  WHERE ee.hire_date = (
+    SELECT MAX(hire_date)
+    FROM HR.employees
+  )
+)
+    GROUP BY E.manager_id
+  )
+)
+
+
+15. 
+SELECT e.employee_id
+FROM HR.employees e
+JOIN HR.departments d ON e.department_id = d.department_id
+JOIN HR.locations l ON d.location_id = l.location_id
+JOIN HR.countries c ON l.country_id = c.country_id
+
+WHERE c.country_id IN (
+  SELECT country_id
+  FROM (
+    SELECT c.country_id, RANK() OVER (ORDER BY min(e.hire_date)) AS hire_date_rank
+    FROM HR.employees e
+    JOIN HR.departments d ON e.department_id = d.department_id
+    JOIN HR.locations l ON d.location_id = l.location_id
+    JOIN HR.countries c ON l.country_id = c.country_id
+    GROUP BY c.country_id
+  )
+  WHERE hire_date_rank = 1
+)
+
+AND e.employee_id IN (
+  SELECT employee_id
+  FROM (
+    SELECT e1.employee_id, RANK() OVER (ORDER BY MAX(e2.salary) DESC) AS salary_rank
+    FROM HR.employees e1
+    JOIN HR.employees e2 ON e1.employee_id = e2.manager_id
+    GROUP BY e1.employee_id
+  )
+  WHERE salary_rank = 1
+)
+ORDER BY e.employee_id
+
+16.
+SELECT HIRE_YEAR
+  FROM (
+    SELECT TO_CHAR(hire_date, 'YYYY') AS hire_year, RANK() OVER (ORDER BY COUNT(*) desc) AS hire_count
+    FROM HR.employees e
+    GROUP BY TO_CHAR(hire_date, 'YYYY')
+    ORDER BY hire_count DESC, hire_year
+  )
+  WHERE hire_count = 1
+
